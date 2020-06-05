@@ -38,6 +38,21 @@ depthf(Path,Nodo,Goal,Sol) :-
 solve_df(Nodo,Goal,L) :-
     paragem(Nodo,_,_,_,_,_,_,_,_,_,_),
 	depthf([],Nodo,Goal, L).
+%-----------------------------------------------------------------
+% Depth-First Limitado (1)
+%-----------------------------------------------------------------
+depthfl(P,Goal,Goal,_,[Goal|P]).
+depthfl(Path,Nodo,Goal,Lim,Sol) :-
+    Lim>0,Nlim is Lim-1,
+    aresta(Nodo, ProxNodo),
+    not(member(ProxNodo, Path)),
+	depthfl([Nodo|Path],ProxNodo,Goal,Nlim,Sol).	
+
+%solve_df(11, 23, L).
+solve_dfl(Nodo,Goal,Lim,L) :-
+    paragem(Nodo,_,_,_,_,_,_,_,_,_,_),
+	depthfl([],Nodo,Goal,Lim,L).
+
 
 %-----------------------------------------------------------------
 % Limitado a Operadoras Depth-First (2)
@@ -154,6 +169,7 @@ expand( P, t(N,Subs),Goal,Test, t( N, Subsl), Solved, Sol) :-
     expandall([N|P],Goal,Test,Subs, [], Subsl, Solved, Sol).
 
 expandall(_,_,_,[], [T|Ts], [T|Ts],no,_).
+
 expandall( P,Goal,Test,[T|Ts], Ts1, Subs1, Solved, Sol) :-
     expand(P,T,Goal,Test,T1,Solved1,Sol),
     (Solved1 =yes, Solved = yes;
@@ -208,12 +224,63 @@ bft2( Tree,Finish,Test,Solution) :-
 %solve_bft(110,200,S)
 solve_bft_limited( Start,Finish,Solution) :-
     true=..Test,
-    bft( l(Start),Finish,Test,Solution,500).
+    bftl( l(Start),Finish,Test,Solution,40).
 bftl( Tree,Goal,Test,Solution,Lim) :-
     expand([],Tree,Goal,Test,Treel, Solved, Solution), Nlim=Lim-1,
-    Nlim>0,
     ( Solved= yes; 
-      Solved= no, bftl(Treel,Goal,Test,Solution,Nlim) );
-    bftl(Treel,Goal,Test,Solution,Nlim).
-%solve_bft_limited( 110,433,Solution).
+      Solved= no,Nlim>0, bftl(Treel,Goal,Test,Solution,Nlim) ).
+%solve_bft_limited( 110,200,Solution).
+/**
+ * A*
+ **/
+bestfirst( Start,End,Solution) :-
+
+    biggest(Big),
+    expand( [], l( Start, 0/0),End,Big, _,yes, Solution).
+expand( P, l( N,_),N,_,_,yes, [N|P]).
+expand( P, l( N, F/G),End,Bound, Tree1, Solved, Sol) :-
+    F =< Bound,
+    (findall( M/C, ( aresta(N,M,C), not(member(M,P)) ), Succ),
+    !,succlist( G, Succ,End,Ts),
+    bestf( Ts, F1),
+    expand( P, t( N, F1/G,Ts),End, Bound, Tree1, Solved, Sol);
+    Solved = never).
+expand( P, t( N, F/G, [T|Ts]),End,Bound, Tree1, Solved, Sol) :-
+    F =<Bound,
+    bestf( Ts, BF),
+    min( Bound, BF, Bound1),
+    expand( [N|P], T,End,Bound1, T1, Solved1, Sol),
+    continue( P, t( N, F/G, [T1|Ts] ),End,Bound, Tree1, Solved1, Solved, Sol).
+expand(_, t(_,_, [] ),_,_,_, never, _) :- !.
+expand(_, Tree,_, Bound, Tree, no,_) :-
+    f( Tree, F), F > Bound.
+continue(_,_,_,_,_,yes, yes, Sol).
+continue( P, t( N, F/G, [T1 | Ts] ),End,Bound, Tree1, Solved1, Solved, Sol):-
+    ( Solved1 = no, insert( T1, Ts, NTs);
+      Solved1 = never, NTs = Ts),
+    bestf( NTs, Fl),
+    expand( P, t( N, Fl/G, NTs),End,Bound, Tree1, Solved, Sol).
+succlist( _, [],_,[] ).
+succlist( G0, [N/C|NCs],End,Ts) :-
+    G is G0+C,
+    h(N,End,H),
+    F is G+H,
+    succlist( G0, NCs,End, Ts1),
+    insert( l( N, F/G), Ts1, Ts).
+insert( T, Ts, [T|Ts]) :-
+    f( T, F),
+    bestf( Ts, F1),
+    F=<F1,!.
+insert( T, [T1|Ts],[T1|Ts1]):-
+    insert( T, Ts, Ts1).
+f(  l( _, F/_ ), F).
+f( t( _,F/_,_), F).
+bestf([T|_],F):-f(T,F).
+bestf( [], Big) :-biggest( Big).
+%---------------------------------------
+astar_euler(Start,End,Sol):-
+    assert(( h(N,M,T):-(euler(N,M,T) ))),
+    bestfirst(Start,End,Sol),
+    retract(( h(N,M,T):-(euler(N,M,T) ))).
+
     
